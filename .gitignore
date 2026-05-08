@@ -1,0 +1,7 @@
+node_modules/ 
+.env 
+.wwebjs_auth/ 
+token.json 
+credentials.json 
+audio_tmp.* 
+.admin_numero 
