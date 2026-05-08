@@ -5,3 +5,5 @@ token.json
 credentials.json 
 audio_tmp.* 
 .admin_numero 
+*.zip 
+.wwebjs_cache/ 
