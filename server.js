@@ -843,6 +843,7 @@ app.post('/webhook', async (req, res) => {
     if (!value?.messages) return;
 
     const msg = value.messages[0];
+    console.log('MSG:', JSON.stringify(msg));
     const telefono = msg.from; // Número real del cliente ✅
     const tipo = msg.type;
 
