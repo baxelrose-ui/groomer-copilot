@@ -1,4 +1,4 @@
-if (process.env.NODE_ENV !== 'production') require('dotenv').config();
+require('dotenv').config();
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const Anthropic = require('@anthropic-ai/sdk');
@@ -173,15 +173,10 @@ Si no hay perro respondé solo: "NO_ES_PERRO"` }
 
 // ── Google Calendar ──────────────────────────────────────────
 function getGoogleAuth() {
-  const creds = process.env.GOOGLE_CREDENTIALS
-    ? JSON.parse(process.env.GOOGLE_CREDENTIALS)
-    : JSON.parse(fs.readFileSync('credentials.json'));
+  const creds = JSON.parse(fs.readFileSync('credentials.json'));
   const { client_secret, client_id } = creds.web;
   const auth = new google.auth.OAuth2(client_id, client_secret, 'http://localhost:3000/callback');
-  const token = process.env.GOOGLE_TOKEN
-    ? JSON.parse(process.env.GOOGLE_TOKEN)
-    : JSON.parse(fs.readFileSync('token.json'));
-  auth.setCredentials(token);
+  auth.setCredentials(JSON.parse(fs.readFileSync('token.json')));
   return auth;
 }
 
@@ -325,7 +320,57 @@ async function agregarListaEspera(clienteId, telefono, fechaPreferida, horarioPr
   } catch (e) { console.error('Error lista espera:', e.message); }
 }
 
-// ── Resumen matutino ─────────────────────────────────────────
+const RECORDATORIO_HORAS = parseInt(process.env.RECORDATORIO_HORAS || '24');
+
+// ── Recordatorios automáticos ────────────────────────────────
+async function enviarRecordatorios() {
+  try {
+    const tz = 'America/Argentina/Buenos_Aires';
+    const ahora = new Date();
+
+    // Calcular la ventana de tiempo: turnos que empiezan en exactamente RECORDATORIO_HORAS horas
+    const desde = new Date(ahora.getTime() + (RECORDATORIO_HORAS - 0.5) * 60 * 60 * 1000);
+    const hasta = new Date(ahora.getTime() + (RECORDATORIO_HORAS + 0.5) * 60 * 60 * 1000);
+
+    const { data: turnos } = await supabase
+      .from('turnos').select('*, clientes(*), mascotas(*)')
+      .eq('negocio_id', NEGOCIO_ID)
+      .gte('fecha_hora_inicio', desde.toISOString())
+      .lte('fecha_hora_inicio', hasta.toISOString())
+      .in('estado', ['pendiente', 'confirmado'])
+      .is('recordatorio_enviado', null);
+
+    if (!turnos?.length) return;
+
+    for (const turno of turnos) {
+      const telefono = turno.clientes?.telefono;
+      if (!telefono) continue;
+
+      const nombre = turno.clientes?.nombre?.split(' ')[0] || 'Hola';
+      const mascota = turno.mascotas?.nombre || 'tu perrito';
+      const hora = new Date(turno.fecha_hora_inicio).toLocaleTimeString('es-AR', {
+        timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false
+      });
+      const dia = new Date(turno.fecha_hora_inicio).toLocaleDateString('es-AR', {
+        timeZone: tz, weekday: 'long', day: 'numeric', month: 'long'
+      });
+
+      const mensaje = `Hola ${nombre}! Te recuerdo que ${RECORDATORIO_HORAS <= 24 ? 'mañana' : `el ${dia}`} tenés turno a las ${hora}hs para ${mascota}. Te esperamos! 🐾`;
+
+      await enviarMensaje(telefono, mensaje);
+
+      // Marcar el turno como recordatorio enviado
+      await supabase.from('turnos').update({ notas: (turno.notas || '') + ' | recordatorio_enviado' }).eq('id', turno.id);
+
+      console.log(`🔔 Recordatorio enviado a ${nombre} (${telefono}) — ${hora}hs`);
+    }
+  } catch (e) { console.error('Error recordatorios:', e.message); }
+}
+
+// Ejecutar cada hora
+setInterval(enviarRecordatorios, 60 * 60 * 1000);
+// También al arrancar
+setTimeout(enviarRecordatorios, 10000);
 async function enviarResumenDia() {
   if (!MI_NUMERO) return;
   try {
@@ -843,7 +888,6 @@ app.post('/webhook', async (req, res) => {
     if (!value?.messages) return;
 
     const msg = value.messages[0];
-    console.log('MSG:', JSON.stringify(msg));
     const telefono = msg.from; // Número real del cliente ✅
     const tipo = msg.type;
 
