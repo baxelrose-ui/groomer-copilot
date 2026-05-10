@@ -322,7 +322,95 @@ async function agregarListaEspera(clienteId, telefono, fechaPreferida, horarioPr
 
 const RECORDATORIO_HORAS = parseInt(process.env.RECORDATORIO_HORAS || '24');
 
-// ── Recordatorios automáticos ────────────────────────────────
+// ── Obtener precios y penalizaciones ────────────────────────
+async function getPrecioServicio(servicioNombre, tamanio) {
+  try {
+    // Buscar el servicio por nombre
+    const { data: servicio } = await supabase
+      .from('servicios').select('id')
+      .eq('negocio_id', NEGOCIO_ID)
+      .ilike('nombre', `%${servicioNombre}%`)
+      .single();
+    if (!servicio) return null;
+
+    const { data: precio } = await supabase
+      .from('precios_servicios').select('precio_min, precio_max')
+      .eq('negocio_id', NEGOCIO_ID)
+      .eq('servicio_id', servicio.id)
+      .eq('tamanio', tamanio)
+      .single();
+
+    return precio || null;
+  } catch (e) { return null; }
+}
+
+async function getPenalizaciones() {
+  try {
+    const { data } = await supabase
+      .from('penalizaciones').select('nombre, precio')
+      .eq('negocio_id', NEGOCIO_ID).eq('activo', true);
+    return data || [];
+  } catch (e) { return []; }
+}
+
+async function getRazasExcluidas() {
+  try {
+    const { data } = await supabase
+      .from('razas_excluidas').select('raza_texto')
+      .eq('negocio_id', NEGOCIO_ID);
+    return data?.map(r => r.raza_texto) || [];
+  } catch (e) { return []; }
+}
+
+async function buildInfoPrecios() {
+  try {
+    const tamanios = ['Mini', 'Pequeño', 'Mediano', 'Grande', 'Gigante'];
+    const { data: servicios } = await supabase
+      .from('servicios').select('id, nombre')
+      .eq('negocio_id', NEGOCIO_ID).eq('activo', true);
+
+    if (!servicios?.length) return '';
+
+    const penalizaciones = await getPenalizaciones();
+    const razasExcluidas = await getRazasExcluidas();
+
+    let info = `PRECIOS (consultá siempre estos precios, no inventes):\n`;
+
+    for (const servicio of servicios) {
+      info += `\n${servicio.nombre}:\n`;
+      for (const tam of tamanios) {
+        const { data: precio } = await supabase
+          .from('precios_servicios').select('precio_min, precio_max')
+          .eq('negocio_id', NEGOCIO_ID)
+          .eq('servicio_id', servicio.id)
+          .eq('tamanio', tam).single().catch(() => ({ data: null }));
+
+        if (precio) {
+          const precioStr = precio.precio_min === precio.precio_max
+            ? `$${precio.precio_min.toLocaleString('es-AR')}`
+            : `$${precio.precio_min.toLocaleString('es-AR')} a $${precio.precio_max.toLocaleString('es-AR')}`;
+          info += `  ${tam}: ${precioStr}\n`;
+        }
+      }
+    }
+
+    if (penalizaciones.length > 0) {
+      info += `\nPENALIZACIONES (se suman al precio base):\n`;
+      penalizaciones.forEach(p => info += `  ${p.nombre}: +$${p.precio.toLocaleString('es-AR')}\n`);
+    }
+
+    if (razasExcluidas.length > 0) {
+      info += `\nRAZAS QUE NO ATENDÉS: ${razasExcluidas.join(', ')}\n`;
+      info += `Si un cliente consulta por estas razas decile amablemente que no trabajás con esa raza.\n`;
+      info += `Excepción: si el cliente tiene nota de "Excepción aprobada" en su ficha, sí lo atendés.\n`;
+    }
+
+    return info;
+  } catch (e) {
+    console.error('Error precios:', e.message);
+    return '';
+  }
+}
 async function enviarRecordatorios() {
   try {
     const tz = 'America/Argentina/Buenos_Aires';
@@ -521,6 +609,7 @@ async function buildSystemPrompt(cliente, primerMensaje, analisisFoto) {
   if (!negocio) return '';
   const eventos = await getEventosCalendar();
   const mascotas = cliente?.mascotas || [];
+  const infoPrecios = await buildInfoPrecios();
   const ahora = new Date();
   const fechaHora = ahora.toLocaleString('es-AR', {
     timeZone: 'America/Argentina/Buenos_Aires',
@@ -547,6 +636,7 @@ AHORA: ${fechaHora} — SON LAS ${soloHora}hs
 
 ${calcularHorariosDisponibles(eventos, negocio)}
 ${buildInfoNegocio(negocio)}
+${infoPrecios}
 
 CLIENTE:
 ${clienteConocido ? `Nombre: ${cliente.nombre}` : 'Sin nombre registrado'}
