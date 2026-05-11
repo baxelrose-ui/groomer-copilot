@@ -379,25 +379,25 @@ async function buildInfoPrecios() {
     const penalizaciones = await getPenalizaciones();
     const razasExcluidas = await getRazasExcluidas();
 
+    // Traer todos los precios de una sola vez
+    const { data: todosPrecios } = await supabase
+      .from('precios_servicios').select('servicio_id, tamanio, precio_min, precio_max')
+      .eq('negocio_id', NEGOCIO_ID);
+
     let info = `PRECIOS (consultá siempre estos precios, no inventes):\n`;
 
     for (const servicio of servicios) {
       info += `\n${servicio.nombre}:\n`;
       for (const tam of tamanios) {
-        try {
-          const { data: precio } = await supabase
-            .from('precios_servicios').select('precio_min, precio_max')
-            .eq('negocio_id', NEGOCIO_ID)
-            .eq('servicio_id', servicio.id)
-            .eq('tamanio', tam).single();
-
-          if (precio) {
-            const precioStr = precio.precio_min === precio.precio_max
-              ? `$${precio.precio_min.toLocaleString('es-AR')}`
-              : `$${precio.precio_min.toLocaleString('es-AR')} a $${precio.precio_max.toLocaleString('es-AR')}`;
-            info += `  ${tam}: ${precioStr}\n`;
-          }
-        } catch (e) { /* No hay precio para ese tamaño, continuar */ }
+        const precio = (todosPrecios || []).find(
+          p => p.servicio_id === servicio.id && p.tamanio === tam
+        );
+        if (precio) {
+          const precioStr = precio.precio_min === precio.precio_max
+            ? `$${precio.precio_min.toLocaleString('es-AR')}`
+            : `$${precio.precio_min.toLocaleString('es-AR')} a $${precio.precio_max.toLocaleString('es-AR')}`;
+          info += `  ${tam}: ${precioStr}\n`;
+        }
       }
     }
 
