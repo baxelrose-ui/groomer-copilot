@@ -173,15 +173,10 @@ Si no hay perro respondé solo: "NO_ES_PERRO"` }
 
 // ── Google Calendar ──────────────────────────────────────────
 function getGoogleAuth() {
-  const creds = process.env.GOOGLE_CREDENTIALS
-    ? JSON.parse(process.env.GOOGLE_CREDENTIALS)
-    : JSON.parse(fs.readFileSync('credentials.json'));
+  const creds = JSON.parse(fs.readFileSync('credentials.json'));
   const { client_secret, client_id } = creds.web;
   const auth = new google.auth.OAuth2(client_id, client_secret, 'http://localhost:3000/callback');
-  const token = process.env.GOOGLE_TOKEN
-    ? JSON.parse(process.env.GOOGLE_TOKEN)
-    : JSON.parse(fs.readFileSync('token.json'));
-  auth.setCredentials(token);
+  auth.setCredentials(JSON.parse(fs.readFileSync('token.json')));
   return auth;
 }
 
@@ -338,15 +333,12 @@ async function getPrecioServicio(servicioNombre, tamanio) {
       .single();
     if (!servicio) return null;
 
-    let precio = null;
-try {
-  const { data } = await supabase
-    .from('precios_servicios').select('precio_min, precio_max')
-    .eq('negocio_id', NEGOCIO_ID)
-    .eq('servicio_id', servicio.id)
-    .eq('tamanio', tam).single();
-  precio = data;
-} catch (e) { precio = null; }
+    const { data: precio } = await supabase
+      .from('precios_servicios').select('precio_min, precio_max')
+      .eq('negocio_id', NEGOCIO_ID)
+      .eq('servicio_id', servicio.id)
+      .eq('tamanio', tamanio)
+      .single();
 
     return precio || null;
   } catch (e) { return null; }
@@ -387,18 +379,20 @@ async function buildInfoPrecios() {
     for (const servicio of servicios) {
       info += `\n${servicio.nombre}:\n`;
       for (const tam of tamanios) {
-        const { data: precio } = await supabase
-          .from('precios_servicios').select('precio_min, precio_max')
-          .eq('negocio_id', NEGOCIO_ID)
-          .eq('servicio_id', servicio.id)
-          .eq('tamanio', tam).single().catch(() => ({ data: null }));
+        try {
+          const { data: precio } = await supabase
+            .from('precios_servicios').select('precio_min, precio_max')
+            .eq('negocio_id', NEGOCIO_ID)
+            .eq('servicio_id', servicio.id)
+            .eq('tamanio', tam).single();
 
-        if (precio) {
-          const precioStr = precio.precio_min === precio.precio_max
-            ? `$${precio.precio_min.toLocaleString('es-AR')}`
-            : `$${precio.precio_min.toLocaleString('es-AR')} a $${precio.precio_max.toLocaleString('es-AR')}`;
-          info += `  ${tam}: ${precioStr}\n`;
-        }
+          if (precio) {
+            const precioStr = precio.precio_min === precio.precio_max
+              ? `$${precio.precio_min.toLocaleString('es-AR')}`
+              : `$${precio.precio_min.toLocaleString('es-AR')} a $${precio.precio_max.toLocaleString('es-AR')}`;
+            info += `  ${tam}: ${precioStr}\n`;
+          }
+        } catch (e) { /* No hay precio para ese tamaño, continuar */ }
       }
     }
 
