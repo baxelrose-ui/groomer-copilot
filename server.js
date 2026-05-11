@@ -338,12 +338,15 @@ async function getPrecioServicio(servicioNombre, tamanio) {
       .single();
     if (!servicio) return null;
 
-    const { data: precio } = await supabase
-      .from('precios_servicios').select('precio_min, precio_max')
-      .eq('negocio_id', NEGOCIO_ID)
-      .eq('servicio_id', servicio.id)
-      .eq('tamanio', tamanio)
-      .single();
+    let precio = null;
+try {
+  const { data } = await supabase
+    .from('precios_servicios').select('precio_min, precio_max')
+    .eq('negocio_id', NEGOCIO_ID)
+    .eq('servicio_id', servicio.id)
+    .eq('tamanio', tam).single();
+  precio = data;
+} catch (e) { precio = null; }
 
     return precio || null;
   } catch (e) { return null; }
