@@ -173,10 +173,15 @@ Si no hay perro respondé solo: "NO_ES_PERRO"` }
 
 // ── Google Calendar ──────────────────────────────────────────
 function getGoogleAuth() {
-  const creds = JSON.parse(fs.readFileSync('credentials.json'));
+  const creds = process.env.GOOGLE_CREDENTIALS
+    ? JSON.parse(process.env.GOOGLE_CREDENTIALS)
+    : JSON.parse(fs.readFileSync('credentials.json'));
   const { client_secret, client_id } = creds.web;
   const auth = new google.auth.OAuth2(client_id, client_secret, 'http://localhost:3000/callback');
-  auth.setCredentials(JSON.parse(fs.readFileSync('token.json')));
+  const token = process.env.GOOGLE_TOKEN
+    ? JSON.parse(process.env.GOOGLE_TOKEN)
+    : JSON.parse(fs.readFileSync('token.json'));
+  auth.setCredentials(token);
   return auth;
 }
 
