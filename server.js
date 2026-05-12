@@ -201,7 +201,11 @@ async function getEventosCalendar() {
     });
     const eventos = data.items || [];
     console.log(`📅 Calendar: ${eventos.length} eventos encontrados`);
-    eventos.forEach(e => console.log(`  - ${e.summary} → ${e.start.dateTime || e.start.date}`));
+    eventos.forEach(e => {
+      console.log(`  - ${e.summary}`);
+      console.log(`    start: ${JSON.stringify(e.start)}`);
+      console.log(`    end: ${JSON.stringify(e.end)}`);
+    });
     return eventos;
   } catch (e) { console.error('Error Calendar:', e.message); return []; }
 }
