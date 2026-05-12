@@ -625,6 +625,14 @@ async function buildSystemPrompt(cliente, primerMensaje, analisisFoto) {
   const soloHora = ahora.toLocaleString('es-AR', {
     timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hour12: false
   });
+  const hoyFecha = ahora.toLocaleDateString('es-AR', {
+    timeZone: 'America/Argentina/Buenos_Aires', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+  const manana = new Date(ahora);
+  manana.setDate(manana.getDate() + 1);
+  const mananaFecha = manana.toLocaleDateString('es-AR', {
+    timeZone: 'America/Argentina/Buenos_Aires', weekday: 'long', day: 'numeric', month: 'long'
+  });
   const mascotasInfo = mascotas.map(m =>
     `- ${m.nombre}${m.raza_texto ? ` (${m.raza_texto})` : ''}${m.tamanio ? `, ${m.tamanio}` : ''}${m.notas ? `. NOTA: ${m.notas}` : ''}`
   ).join('\n');
@@ -640,6 +648,10 @@ TONO: Natural y cálido, sin exagerar. Máximo UN emoji por mensaje. Sin signos 
 ${negocio.modo_descanso ? `\nHOY NO PODÉS ATENDER: ${negocio.motivo_descanso}.\n` : ''}
 
 AHORA: ${fechaHora} — SON LAS ${soloHora}hs
+HOY ES: ${hoyFecha}
+MAÑANA ES: ${mananaFecha}
+
+⚠️ FECHAS IMPORTANTE: Cuando el cliente diga "mañana" significa ${mananaFecha}. Siempre confirmá el turno con el día de la semana Y la fecha exacta (ej: "martes 12 de mayo a las 10:00hs"). Nunca confundas "mañana" con otro día.
 
 ${calcularHorariosDisponibles(eventos, negocio)}
 ${buildInfoNegocio(negocio)}
