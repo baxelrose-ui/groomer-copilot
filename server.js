@@ -200,12 +200,7 @@ async function getEventosCalendar() {
       orderBy: 'startTime',
     });
     const eventos = data.items || [];
-    console.log(`📅 Calendar: ${eventos.length} eventos encontrados`);
-    eventos.forEach(e => {
-      console.log(`  - ${e.summary}`);
-      console.log(`    start: ${JSON.stringify(e.start)}`);
-      console.log(`    end: ${JSON.stringify(e.end)}`);
-    });
+    console.log(`📅 Calendar: ${eventos.length} eventos`);
     return eventos;
   } catch (e) { console.error('Error Calendar:', e.message); return []; }
 }
@@ -572,7 +567,7 @@ function calcularHorariosDisponibles(eventos, negocio) {
   agenda += `ÚLTIMO INICIO: Baño ${cierreH-1}:00hs · Baño y corte ${cierreH-2}:00hs\n`;
   agenda += `NUNCA ofrezcas turno que termine después de las ${cierre}hs.\n`;
   if (HORARIOS_PERMITIDOS?.length > 0) agenda += `HORARIOS HABILITADOS: ${HORARIOS_PERMITIDOS.join(', ')}hs\n`;
-  agenda += `⚠️ Solo ofrecé los horarios que aparecen como "✓ Disponibles". Si un día dice "✓ Disponibles: 16:00hs" ESE DÍA SOLO HAY LUGAR A LAS 16HS.\n\n`;
+  agenda += `⚠️ REGLA ABSOLUTA DE HORARIOS: Los horarios marcados como "✗ Ocupado" están BLOQUEADOS. NUNCA los ofrezcas bajo ninguna circunstancia. Si el cliente pide un horario ocupado, decile que no tenés lugar y ofrecé solo los "✓ Disponibles". Si un día no tiene "✓ Disponibles" es porque está completamente ocupado. Esto no tiene excepciones.\n\n`;
 
   if (Object.keys(porDia).length === 0) {
     agenda += `Sin eventos. Libre en horarios habilitados.`;
@@ -622,6 +617,8 @@ async function buildSystemPrompt(cliente, primerMensaje, analisisFoto) {
   const negocio = await getNegocio();
   if (!negocio) return '';
   const eventos = await getEventosCalendar();
+  const agendaTexto = calcularHorariosDisponibles(eventos, negocio);
+  console.log('📋 AGENDA:\n' + agendaTexto);
   const mascotas = cliente?.mascotas || [];
   const infoPrecios = await buildInfoPrecios();
   const ahora = new Date();
@@ -660,7 +657,7 @@ MAÑANA ES: ${mananaFecha}
 
 ⚠️ FECHAS IMPORTANTE: Cuando el cliente diga "mañana" significa ${mananaFecha}. Siempre confirmá el turno con el día de la semana Y la fecha exacta (ej: "martes 12 de mayo a las 10:00hs"). Nunca confundas "mañana" con otro día.
 
-${calcularHorariosDisponibles(eventos, negocio)}
+${agendaTexto}
 ${buildInfoNegocio(negocio)}
 ${infoPrecios}
 
